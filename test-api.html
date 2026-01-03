@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - ByFly Payment Center</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-block {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        pre {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 ByFly Payment Center - API Test</h1>
+    
+    <div class="test-block">
+        <h2>1. Test API Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connection-result"></div>
+    </div>
+
+    <div class="test-block">
+        <h2>2. Test Authorization Flow</h2>
+        <div>
+            <label>Phone:</label>
+            <input type="tel" id="phone" value="+77780021666" />
+        </div>
+        <button onclick="sendCode()">Send SMS Code</button>
+        <div id="send-code-result"></div>
+        
+        <div id="verify-block" style="display:none; margin-top:20px;">
+            <label>SMS Code:</label>
+            <input type="text" id="code" placeholder="000000" maxlength="6" />
+            <button onclick="verifyCode()">Verify Code</button>
+            <div id="verify-result"></div>
+        </div>
+    </div>
+
+    <div class="test-block">
+        <h2>3. Test Admin Endpoints</h2>
+        <button onclick="testAdminEndpoints()">Test Admin API</button>
+        <div id="admin-result"></div>
+    </div>
+
+    <div class="test-block">
+        <h2>📊 Debug Info</h2>
+        <div>
+            <strong>Current URL:</strong> <code id="current-url"></code><br>
+            <strong>API Base:</strong> <code id="api-base"></code><br>
+            <strong>Token in Storage:</strong> <code id="token-storage"></code><br>
+            <strong>Admin in Storage:</strong> <code id="admin-storage"></code>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        
+        // Update debug info
+        document.getElementById('current-url').textContent = window.location.href;
+        document.getElementById('api-base').textContent = API_BASE;
+        updateStorageInfo();
+
+        function updateStorageInfo() {
+            const token = localStorage.getItem('token');
+            const admin = localStorage.getItem('admin');
+            document.getElementById('token-storage').textContent = token ? token.substring(0, 50) + '...' : 'null';
+            document.getElementById('admin-storage').textContent = admin ? admin.substring(0, 50) + '...' : 'null';
+        }
+
+        async function testConnection() {
+            const resultDiv = document.getElementById('connection-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch(API_BASE + '/test.php');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="status success">✅ API Connected!</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Connection Failed</div>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+
+        async function sendCode() {
+            const resultDiv = document.getElementById('send-code-result');
+            const phone = document.getElementById('phone').value;
+            resultDiv.innerHTML = '<p>Sending...</p>';
+            
+            try {
+                const response = await fetch(API_BASE + '/auth/send-code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone })
+                });
+                
+                const data = await response.json();
+                console.log('Send Code Response:', data);
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ SMS Code Sent!</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    document.getElementById('verify-block').style.display = 'block';
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ ${data.message}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function verifyCode() {
+            const resultDiv = document.getElementById('verify-result');
+            const phone = document.getElementById('phone').value;
+            const code = document.getElementById('code').value;
+            resultDiv.innerHTML = '<p>Verifying...</p>';
+            
+            try {
+                const response = await fetch(API_BASE + '/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone, code })
+                });
+                
+                const data = await response.json();
+                console.log('Verify Code Response:', data);
+                
+                if (data.success && data.data) {
+                    // Save to localStorage
+                    localStorage.setItem('token', data.data.token);
+                    localStorage.setItem('admin', JSON.stringify(data.data.admin));
+                    updateStorageInfo();
+                    
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ Authorization Successful!</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        <p><strong>Token saved to localStorage</strong></p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ ${data.message}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testAdminEndpoints() {
+            const resultDiv = document.getElementById('admin-result');
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                resultDiv.innerHTML = '<div class="status error">❌ No token found. Please authorize first.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p>Testing admin endpoints...</p>';
+            
+            try {
+                // Test transactions endpoint
+                const response = await fetch(API_BASE + '/admin/transactions?limit=5', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                console.log('Admin API Response:', data);
+                
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ Admin API Working!</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ Status: ${response.status}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error: ${error.message}</div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
+

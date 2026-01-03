@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест API - Способы оплаты</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .method-card {
+            border: 2px solid #667eea;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            background: #f8f9ff;
+        }
+        .method-card h3 {
+            margin: 0 0 10px 0;
+            color: #667eea;
+        }
+        .method-card p {
+            margin: 5px 0;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .info {
+            background: #d1ecf1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Тест API - Способы оплаты</h1>
+        
+        <div class="info">
+            <strong>Инструкция:</strong><br>
+            1. Нажмите кнопку "Загрузить способы оплаты"<br>
+            2. Если появятся карточки с методами - API работает ✅<br>
+            3. Если ошибка - нужно применить исправления на сервере ❌
+        </div>
+
+        <button onclick="testAPI()">🔄 Загрузить способы оплаты</button>
+        <button onclick="testAPIWithDetails()">📋 Показать детали запроса</button>
+        <button onclick="location.reload()">🔃 Очистить</button>
+
+        <div id="status"></div>
+        <div id="results"></div>
+        <div id="details"></div>
+    </div>
+
+    <script>
+        async function testAPI() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            statusDiv.innerHTML = '<div class="status loading">⏳ Загрузка...</div>';
+            resultsDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/payment-methods/active');
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                if (data.success && data.data && data.data.length > 0) {
+                    statusDiv.innerHTML = `<div class="status success">✅ API работает! Найдено ${data.data.length} способов оплаты</div>`;
+                    
+                    let html = '<h2>Способы оплаты:</h2>';
+                    data.data.forEach(method => {
+                        html += `
+                            <div class="method-card">
+                                <h3>${method.name} (${method.code})</h3>
+                                <p><strong>Провайдер:</strong> ${method.provider}</p>
+                                <p><strong>Тип:</strong> ${method.type}</p>
+                                <p><strong>Комиссия:</strong> ${method.commission_percent}%</p>
+                                ${method.has_credit ? `<p><strong>Кредит:</strong> ${method.credit_commission_percent}% годовых</p>` : ''}
+                                ${method.has_installment ? `<p><strong>Рассрочка:</strong> ${method.installment_months} мес, комиссия ${method.installment_commission_percent}%</p>` : ''}
+                            </div>
+                        `;
+                    });
+                    resultsDiv.innerHTML = html;
+                } else {
+                    statusDiv.innerHTML = '<div class="status error">❌ API вернул пустой массив методов</div>';
+                    resultsDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="status error">❌ Ошибка: ${error.message}</div>`;
+                resultsDiv.innerHTML = `
+                    <h3>Возможные причины:</h3>
+                    <ul>
+                        <li>Файл api/index.php не обновлен на сервере</li>
+                        <li>Эндпоинт /api/payment-methods/active не найден (404)</li>
+                        <li>Проблема с роутингом</li>
+                        <li>PHP ошибка на сервере</li>
+                    </ul>
+                    <h3>Что делать:</h3>
+                    <ol>
+                        <li>Загрузите обновленный deploy.zip на сервер</li>
+                        <li>ИЛИ обновите файл api/index.php вручную</li>
+                        <li>Очистите кеш браузера (Ctrl+Shift+R)</li>
+                        <li>Попробуйте снова</li>
+                    </ol>
+                `;
+            }
+        }
+
+        async function testAPIWithDetails() {
+            const detailsDiv = document.getElementById('details');
+            
+            try {
+                const response = await fetch('/api/payment-methods/active');
+                const data = await response.json();
+
+                const details = {
+                    url: '/api/payment-methods/active',
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok,
+                    headers: {
+                        'Content-Type': response.headers.get('Content-Type')
+                    },
+                    response: data
+                };
+
+                detailsDiv.innerHTML = `
+                    <h3>Детали запроса:</h3>
+                    <pre>${JSON.stringify(details, null, 2)}</pre>
+                `;
+            } catch (error) {
+                detailsDiv.innerHTML = `
+                    <h3>Ошибка запроса:</h3>
+                    <pre>${error.message}\n${error.stack}</pre>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
+

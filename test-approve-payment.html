@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест API подписания платежа</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            font-size: 16px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .result {
+            white-space: pre-wrap;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fee;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #efe;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Тест API подписания платежа</h1>
+
+    <div class="card">
+        <h3>1. Проверить токен</h3>
+        <p>Введите токен из URL параметра</p>
+        <input type="text" id="token" placeholder="Токен из ссылки (например: dd55275ca041e42d93cbade54fb254c8)">
+        <button onclick="testGetPayment()">Получить платеж</button>
+        <div id="result1"></div>
+    </div>
+
+    <div class="card">
+        <h3>2. Одобрить платеж</h3>
+        <button onclick="testApprove()">Одобрить</button>
+        <div id="result2"></div>
+    </div>
+
+    <div class="card">
+        <h3>3. Отклонить платеж</h3>
+        <input type="text" id="comment" placeholder="Причина отклонения">
+        <button onclick="testReject()">Отклонить</button>
+        <div id="result3"></div>
+    </div>
+
+    <script>
+        async function testGetPayment() {
+            const token = document.getElementById('token').value;
+            const resultDiv = document.getElementById('result1');
+            
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Введите токен!';
+                return;
+            }
+
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = 'Загрузка...';
+
+                const response = await fetch(`/api/approvals/payment-by-token/${token}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `Ошибка ${response.status}:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Ошибка: ' + error.message;
+            }
+        }
+
+        async function testApprove() {
+            const token = document.getElementById('token').value;
+            const resultDiv = document.getElementById('result2');
+            
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Введите токен сначала!';
+                return;
+            }
+
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = 'Отправка...';
+
+                const response = await fetch(`/api/approvals/approve-by-token/${token}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = '✅ Платеж одобрен!\n' + JSON.stringify(data, null, 2);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `Ошибка ${response.status}:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Ошибка: ' + error.message;
+            }
+        }
+
+        async function testReject() {
+            const token = document.getElementById('token').value;
+            const comment = document.getElementById('comment').value;
+            const resultDiv = document.getElementById('result3');
+            
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Введите токен сначала!';
+                return;
+            }
+
+            try {
+                resultDiv.className = 'result';
+                resultDiv.textContent = 'Отправка...';
+
+                const response = await fetch(`/api/approvals/reject-by-token/${token}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ comment })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = '❌ Платеж отклонен!\n' + JSON.stringify(data, null, 2);
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `Ошибка ${response.status}:\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = 'Ошибка: ' + error.message;
+            }
+        }
+
+        // Автозаполнение токена из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get('token');
+        if (tokenFromUrl) {
+            document.getElementById('token').value = tokenFromUrl;
+            console.log('✅ Токен из URL:', tokenFromUrl);
+        }
+    </script>
+</body>
+</html>
+
+
+
+

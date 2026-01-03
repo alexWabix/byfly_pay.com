@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Диагностика страницы оплаты</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 20px;
+            border-left: 4px solid #ddd;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .step.success {
+            border-left-color: #10b981;
+            background: #d1fae5;
+        }
+        .step.error {
+            border-left-color: #ef4444;
+            background: #fee2e2;
+        }
+        .step.loading {
+            border-left-color: #f59e0b;
+            background: #fef3c7;
+        }
+        .step-title {
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .step-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+        .solution {
+            background: #dbeafe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border-left: 4px solid #3b82f6;
+        }
+        .solution-title {
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 8px;
+        }
+        .code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Диагностика страницы оплаты</h1>
+        <p class="subtitle">Этот инструмент поможет найти и исправить проблему</p>
+
+        <button onclick="runFullDiagnosis()">▶️ Запустить полную диагностику</button>
+        <button onclick="location.reload()">🔄 Начать заново</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        let allPassed = true;
+
+        async function runFullDiagnosis() {
+            resultsDiv.innerHTML = '';
+            allPassed = true;
+
+            await step1CheckAPIEndpoint();
+            await step2CheckPaymentMethods();
+            await step3CheckTransaction();
+            await step4CheckBrowserConsole();
+            
+            if (allPassed) {
+                showFinalSuccess();
+            } else {
+                showFinalError();
+            }
+        }
+
+        async function step1CheckAPIEndpoint() {
+            addStep('loading', '1️⃣ Проверка API эндпоинта', 'Проверяем доступность /api/payment-methods/active...');
+
+            try {
+                const response = await fetch('/api/payment-methods/active');
+                const text = await response.text();
+                
+                if (!response.ok) {
+                    allPassed = false;
+                    updateStep('error', '1️⃣ API эндпоинт недоступен', `
+                        <strong>Ошибка HTTP ${response.status}</strong><br>
+                        <pre>${text.substring(0, 500)}</pre>
+                        <div class="solution">
+                            <div class="solution-title">💡 Решение:</div>
+                            1. Файл <span class="code">api/index.php</span> не обновлен на сервере<br>
+                            2. Загрузите новый <span class="code">deploy.zip</span> на сервер<br>
+                            3. Распакуйте с заменой файлов<br>
+                            4. Обновите эту страницу (Ctrl+Shift+R)
+                        </div>
+                    `);
+                    return;
+                }
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    allPassed = false;
+                    updateStep('error', '1️⃣ API возвращает не JSON', `
+                        <strong>Сервер вернул не JSON формат</strong><br>
+                        <pre>${text.substring(0, 500)}</pre>
+                        <div class="solution">
+                            <div class="solution-title">💡 Решение:</div>
+                            Проверьте логи PHP на сервере - возможно есть ошибка в коде
+                        </div>
+                    `);
+                    return;
+                }
+
+                updateStep('success', '1️⃣ API эндпоинт работает ✅', `
+                    API доступен и возвращает корректный JSON<br>
+                    <strong>URL:</strong> /api/payment-methods/active<br>
+                    <strong>Status:</strong> ${response.status} OK
+                `);
+
+            } catch (error) {
+                allPassed = false;
+                updateStep('error', '1️⃣ Ошибка подключения к API', `
+                    <strong>${error.message}</strong><br>
+                    <div class="solution">
+                        <div class="solution-title">💡 Решение:</div>
+                        1. Проверьте что сервер запущен<br>
+                        2. Проверьте путь к API<br>
+                        3. Проверьте .htaccess файл
+                    </div>
+                `);
+            }
+        }
+
+        async function step2CheckPaymentMethods() {
+            addStep('loading', '2️⃣ Проверка способов оплаты', 'Загружаем список методов...');
+
+            try {
+                const response = await fetch('/api/payment-methods/active');
+                const data = await response.json();
+
+                if (!data.success) {
+                    allPassed = false;
+                    updateStep('error', '2️⃣ API вернул ошибку', `
+                        <strong>${data.message || 'Неизвестная ошибка'}</strong><br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `);
+                    return;
+                }
+
+                if (!data.data || data.data.length === 0) {
+                    allPassed = false;
+                    updateStep('error', '2️⃣ Нет активных способов оплаты ❌', `
+                        <strong>База данных не содержит активных методов оплаты</strong><br>
+                        <div class="solution">
+                            <div class="solution-title">💡 Решение:</div>
+                            1. Выполните SQL скрипт на сервере:<br>
+                            <pre>mysql -u payments -p payments < database/fix-payment-methods.sql</pre>
+                            Пароль: <span class="code">2350298aweA</span><br><br>
+                            2. ИЛИ выполните через phpMyAdmin:<br>
+                            - Откройте базу данных <span class="code">payments</span><br>
+                            - Выполните SQL из файла <span class="code">database/fix-payment-methods.sql</span><br><br>
+                            3. Обновите эту страницу
+                        </div>
+                    `);
+                    return;
+                }
+
+                const kaspiMethods = data.data.filter(m => m.provider === 'Kaspi');
+                
+                if (kaspiMethods.length === 0) {
+                    allPassed = false;
+                    updateStep('error', '2️⃣ Нет методов Kaspi', `
+                        <strong>Найдено ${data.data.length} методов, но ни один не от Kaspi</strong><br>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                    `);
+                    return;
+                }
+
+                updateStep('success', '2️⃣ Способы оплаты найдены ✅', `
+                    Найдено <strong>${kaspiMethods.length}</strong> активных методов Kaspi:<br><br>
+                    ${kaspiMethods.map((m, i) => `
+                        ${i + 1}. <strong>${m.name}</strong> (${m.code})<br>
+                        &nbsp;&nbsp;&nbsp;Комиссия: ${m.commission_percent}%<br>
+                    `).join('')}
+                `);
+
+            } catch (error) {
+                allPassed = false;
+                updateStep('error', '2️⃣ Ошибка загрузки методов', error.message);
+            }
+        }
+
+        async function step3CheckTransaction() {
+            addStep('loading', '3️⃣ Проверка текущей транзакции', 'Загружаем данные платежа...');
+
+            const urlParts = window.location.pathname.split('/');
+            const transactionId = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
+
+            if (!transactionId || transactionId === 'diagnose-payment-page.html') {
+                updateStep('error', '3️⃣ Не удалось определить ID транзакции', `
+                    <strong>Откройте эту страницу как /pay/{transaction_id}</strong><br>
+                    Текущий URL: ${window.location.pathname}
+                `);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/payment/${transactionId}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    updateStep('error', '3️⃣ Транзакция не найдена', `
+                        <strong>ID: ${transactionId}</strong><br>
+                        ${data.message || 'Транзакция не существует'}
+                    `);
+                    return;
+                }
+
+                updateStep('success', '3️⃣ Транзакция найдена ✅', `
+                    <strong>ID:</strong> ${data.data.transaction_id}<br>
+                    <strong>Сумма:</strong> ${data.data.amount} ${data.data.currency}<br>
+                    <strong>Статус:</strong> ${data.data.status}<br>
+                    <strong>Описание:</strong> ${data.data.description || '-'}
+                `);
+
+            } catch (error) {
+                updateStep('error', '3️⃣ Ошибка загрузки транзакции', error.message);
+            }
+        }
+
+        async function step4CheckBrowserConsole() {
+            addStep('success', '4️⃣ Проверка консоли браузера', `
+                Откройте консоль браузера (F12 → Console) и проверьте наличие ошибок.<br><br>
+                Часто встречающиеся ошибки:<br>
+                • <span class="code">Failed to load payment methods</span> - проблема с API<br>
+                • <span class="code">404 Not Found</span> - файлы не найдены<br>
+                • <span class="code">CORS error</span> - проблема с CORS заголовками<br><br>
+                Если ошибок нет - проблема в другом месте.
+            `);
+        }
+
+        function showFinalSuccess() {
+            resultsDiv.innerHTML += `
+                <div class="step success">
+                    <div class="step-title">✅ Все проверки пройдены успешно!</div>
+                    <div class="step-content">
+                        Система настроена правильно. Если способы оплаты все равно не отображаются:<br><br>
+                        1. Очистите кеш браузера: <strong>Ctrl+Shift+R</strong><br>
+                        2. Попробуйте в режиме инкогнито<br>
+                        3. Попробуйте другой браузер<br>
+                        4. Проверьте консоль браузера (F12) на наличие ошибок JavaScript
+                    </div>
+                </div>
+            `;
+        }
+
+        function showFinalError() {
+            resultsDiv.innerHTML += `
+                <div class="step error">
+                    <div class="step-title">❌ Обнаружены проблемы</div>
+                    <div class="step-content">
+                        Следуйте инструкциям выше для исправления проблем.<br>
+                        После исправления обновите страницу и запустите диагностику снова.
+                    </div>
+                </div>
+            `;
+        }
+
+        function addStep(status, title, content) {
+            const stepId = 'step-' + Date.now();
+            resultsDiv.innerHTML += `
+                <div id="${stepId}" class="step ${status}">
+                    <div class="step-title">${title}</div>
+                    <div class="step-content">${content}</div>
+                </div>
+            `;
+            return stepId;
+        }
+
+        function updateStep(status, title, content) {
+            const steps = resultsDiv.querySelectorAll('.step');
+            const lastStep = steps[steps.length - 1];
+            if (lastStep) {
+                lastStep.className = `step ${status}`;
+                lastStep.querySelector('.step-title').innerHTML = title;
+                lastStep.querySelector('.step-content').innerHTML = content;
+            }
+        }
+    </script>
+</body>
+</html>
+
