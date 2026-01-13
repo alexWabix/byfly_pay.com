@@ -109,14 +109,14 @@
       </div>
 
       <!-- Массовые действия -->
-      <div v-if="selected.length > 0 || currentFilter === 'pending'" class="bulk-actions">
+      <div v-if="selected.length > 0 || stats.pending > 0" class="bulk-actions">
         <button v-if="selected.length > 0" @click="bulkApprove" class="btn btn-success">
           ✅ Одобрить выбранные ({{ selected.length }})
         </button>
         <button v-if="selected.length > 0" @click="selected = []" class="btn btn-outline">
           Отменить выбор
         </button>
-        <button v-if="currentFilter === 'pending' && stats.pending > 0" @click="approveAllMy" class="btn btn-primary" style="margin-left: auto;">
+        <button v-if="stats.pending > 0" @click="approveAllMy" class="btn btn-primary" style="margin-left: auto;">
           ✅ Подписать все мои платежи ({{ stats.pending }})
         </button>
       </div>
