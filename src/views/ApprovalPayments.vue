@@ -109,12 +109,15 @@
       </div>
 
       <!-- Массовые действия -->
-      <div v-if="selected.length > 0" class="bulk-actions">
-        <button @click="bulkApprove" class="btn btn-success">
+      <div v-if="selected.length > 0 || currentFilter === 'pending'" class="bulk-actions">
+        <button v-if="selected.length > 0" @click="bulkApprove" class="btn btn-success">
           ✅ Одобрить выбранные ({{ selected.length }})
         </button>
-        <button @click="selected = []" class="btn btn-outline">
+        <button v-if="selected.length > 0" @click="selected = []" class="btn btn-outline">
           Отменить выбор
+        </button>
+        <button v-if="currentFilter === 'pending' && stats.pending > 0" @click="approveAllMy" class="btn btn-primary" style="margin-left: auto;">
+          ✅ Подписать все мои платежи ({{ stats.pending }})
         </button>
       </div>
 
@@ -591,12 +594,27 @@ async function reject(id) {
 
 async function bulkApprove() {
   try {
-    await api.post('/approvals/bulk-approve', { payment_ids: selected.value })
-    alert('✅ Одобрено!')
+    const response = await api.post('/approvals/bulk-approve', { payment_ids: selected.value })
+    alert(`✅ Подписано: ${response.data.approved} платежей\nПолностью одобрено: ${response.data.fully_approved}`)
     selected.value = []
     loadAllPayments()
   } catch (error) {
-    alert('Ошибка')
+    alert('Ошибка: ' + (error.response?.data?.message || 'Неизвестная ошибка'))
+  }
+}
+
+async function approveAllMy() {
+  if (!confirm(`Вы уверены что хотите подписать ВСЕ платежи (${stats.value.pending} шт.), ожидающие вашей подписи?`)) {
+    return
+  }
+  
+  try {
+    const response = await api.post('/approvals/approve-all-my')
+    alert(response.message || `✅ Подписано: ${response.data.approved} платежей\nПолностью одобрено: ${response.data.fully_approved}`)
+    selected.value = []
+    loadAllPayments()
+  } catch (error) {
+    alert('Ошибка: ' + (error.response?.data?.message || 'Неизвестная ошибка'))
   }
 }
 

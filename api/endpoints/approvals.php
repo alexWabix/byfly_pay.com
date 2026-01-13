@@ -613,7 +613,7 @@ elseif ($requestMethod === 'POST' && $pathParts[1] === 'payments' && $pathParts[
     }
 }
 
-// POST /api/approvals/bulk-approve - Массовое одобрение
+// POST /api/approvals/bulk-approve - Массовое одобрение выбранных
 elseif ($requestMethod === 'POST' && $pathParts[1] === 'bulk-approve') {
     $data = json_decode(file_get_contents('php://input'), true);
     
@@ -624,8 +624,11 @@ elseif ($requestMethod === 'POST' && $pathParts[1] === 'bulk-approve') {
         }
         
         $approved = 0;
+        $fullyApproved = 0;
+        
         foreach ($paymentIds as $paymentId) {
             try {
+                // Обновляем подпись
                 $db->update(
                     'payment_approvals',
                     [
@@ -635,13 +638,132 @@ elseif ($requestMethod === 'POST' && $pathParts[1] === 'bulk-approve') {
                     'payment_id = ? AND admin_id = ? AND status = \'pending\'',
                     [$paymentId, $admin['admin_id']]
                 );
+                
+                // Пересчитываем количество одобрений
+                $approvedCount = $db->fetch(
+                    "SELECT COUNT(*) as count FROM payment_approvals 
+                     WHERE payment_id = ? AND status = 'approved'",
+                    [$paymentId]
+                )['count'];
+                
+                $payment = $db->fetch("SELECT * FROM outgoing_payments WHERE id = ?", [$paymentId]);
+                
+                // Если все одобрили - меняем статус платежа
+                if ($payment && $approvedCount >= $payment['required_approvals']) {
+                    $db->update(
+                        'outgoing_payments',
+                        [
+                            'status' => 'approved',
+                            'approved_count' => $approvedCount,
+                            'approved_at' => date('Y-m-d H:i:s')
+                        ],
+                        'id = ?',
+                        [$paymentId]
+                    );
+                    $fullyApproved++;
+                } else {
+                    $db->update(
+                        'outgoing_payments',
+                        ['approved_count' => $approvedCount],
+                        'id = ?',
+                        [$paymentId]
+                    );
+                }
+                
                 $approved++;
             } catch (Exception $e) {
+                error_log("Bulk approve error for payment {$paymentId}: " . $e->getMessage());
                 continue;
             }
         }
         
-        Response::success(['approved' => $approved], "Одобрено платежей: {$approved}");
+        Response::success([
+            'approved' => $approved,
+            'fully_approved' => $fullyApproved
+        ], "Подписано: {$approved} платежей. Полностью одобрено: {$fullyApproved}");
+        
+    } catch (Exception $e) {
+        Response::error($e->getMessage(), 400);
+    }
+}
+
+// POST /api/approvals/approve-all-my - Одобрить ВСЕ МОИ платежи ожидающие подписи
+elseif ($requestMethod === 'POST' && $pathParts[1] === 'approve-all-my') {
+    try {
+        // Получаем все платежи где текущий админ должен поставить подпись
+        $myPendingApprovals = $db->fetchAll(
+            "SELECT payment_id FROM payment_approvals 
+             WHERE admin_id = ? AND status = 'pending'",
+            [$admin['admin_id']]
+        );
+        
+        if (empty($myPendingApprovals)) {
+            Response::success([
+                'approved' => 0,
+                'fully_approved' => 0
+            ], 'Нет платежей ожидающих вашей подписи');
+        }
+        
+        $approved = 0;
+        $fullyApproved = 0;
+        
+        foreach ($myPendingApprovals as $approval) {
+            try {
+                $paymentId = $approval['payment_id'];
+                
+                // Обновляем подпись
+                $db->update(
+                    'payment_approvals',
+                    [
+                        'status' => 'approved',
+                        'approved_at' => date('Y-m-d H:i:s')
+                    ],
+                    'payment_id = ? AND admin_id = ?',
+                    [$paymentId, $admin['admin_id']]
+                );
+                
+                // Пересчитываем количество одобрений
+                $approvedCount = $db->fetch(
+                    "SELECT COUNT(*) as count FROM payment_approvals 
+                     WHERE payment_id = ? AND status = 'approved'",
+                    [$paymentId]
+                )['count'];
+                
+                $payment = $db->fetch("SELECT * FROM outgoing_payments WHERE id = ?", [$paymentId]);
+                
+                // Если все одобрили - меняем статус платежа
+                if ($payment && $approvedCount >= $payment['required_approvals']) {
+                    $db->update(
+                        'outgoing_payments',
+                        [
+                            'status' => 'approved',
+                            'approved_count' => $approvedCount,
+                            'approved_at' => date('Y-m-d H:i:s')
+                        ],
+                        'id = ?',
+                        [$paymentId]
+                    );
+                    $fullyApproved++;
+                } else {
+                    $db->update(
+                        'outgoing_payments',
+                        ['approved_count' => $approvedCount],
+                        'id = ?',
+                        [$paymentId]
+                    );
+                }
+                
+                $approved++;
+            } catch (Exception $e) {
+                error_log("Approve all my error for payment {$paymentId}: " . $e->getMessage());
+                continue;
+            }
+        }
+        
+        Response::success([
+            'approved' => $approved,
+            'fully_approved' => $fullyApproved
+        ], "✅ Подписано: {$approved} платежей. Полностью одобрено: {$fullyApproved}");
         
     } catch (Exception $e) {
         Response::error($e->getMessage(), 400);

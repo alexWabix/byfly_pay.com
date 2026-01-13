@@ -22,3 +22,4 @@ WHERE `camera_url` LIKE '%/qr/%';
 
 
 
+

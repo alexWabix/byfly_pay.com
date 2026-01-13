@@ -78,3 +78,4 @@ INSERT INTO `payment_categories` (`name`, `description`, `color`, `icon_emoji`) 
 
 
 
+

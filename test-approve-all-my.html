@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест массового подтверждения платежей</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        .response.error {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+            color: #dc2626;
+        }
+        .pending-list {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .pending-item {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .pending-item:last-child {
+            border-bottom: none;
+        }
+        .amount {
+            font-weight: 700;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Тест массового подтверждения платежей</h1>
+
+        <!-- Шаг 1: Авторизация -->
+        <div class="section">
+            <h2>1️⃣ Авторизация</h2>
+            <div class="form-group">
+                <label>Телефон администратора:</label>
+                <input type="tel" id="phone" placeholder="+7 778 002 16 666" value="+77780021666">
+            </div>
+            <button onclick="sendCode()">Отправить SMS код</button>
+            
+            <div class="form-group" style="margin-top: 15px;">
+                <label>SMS код:</label>
+                <input type="text" id="code" placeholder="123456">
+            </div>
+            <button onclick="verifyCode()" class="btn-success">Войти</button>
+            
+            <div id="authResponse"></div>
+        </div>
+
+        <!-- Шаг 2: Получить мои pending платежи -->
+        <div class="section">
+            <h2>2️⃣ Мои платежи ожидающие подписи</h2>
+            <button onclick="getMyPendingPayments()">Загрузить список</button>
+            <div id="pendingList"></div>
+            <div id="pendingResponse"></div>
+        </div>
+
+        <!-- Шаг 3: Массовое подтверждение -->
+        <div class="section">
+            <h2>3️⃣ Массовое подтверждение</h2>
+            <p style="margin-bottom: 15px; color: #666;">
+                Эта кнопка подтвердит <strong>ВСЕ</strong> платежи, где вы должны поставить подпись.
+            </p>
+            <button onclick="approveAllMy()" class="btn-success" style="font-size: 18px;">
+                ✅ ПОДПИСАТЬ ВСЕ МОИ ПЛАТЕЖИ
+            </button>
+            <div id="approveAllResponse"></div>
+        </div>
+
+        <!-- Шаг 4: Массовое подтверждение выбранных -->
+        <div class="section">
+            <h2>4️⃣ Подтверждение выбранных платежей (старый функционал)</h2>
+            <div class="form-group">
+                <label>ID платежей через запятую:</label>
+                <input type="text" id="selectedIds" placeholder="1,2,3">
+            </div>
+            <button onclick="bulkApprove()" class="btn-success">✅ Одобрить выбранные</button>
+            <div id="bulkResponse"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin + '/api';
+        let authToken = localStorage.getItem('test_token');
+        let pendingPayments = [];
+
+        async function sendCode() {
+            const phone = document.getElementById('phone').value;
+            try {
+                const response = await fetch(`${API_URL}/auth/send-code`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone })
+                });
+                const data = await response.json();
+                showResponse('authResponse', data, response.ok);
+            } catch (error) {
+                showResponse('authResponse', { error: error.message }, false);
+            }
+        }
+
+        async function verifyCode() {
+            const phone = document.getElementById('phone').value;
+            const code = document.getElementById('code').value;
+            try {
+                const response = await fetch(`${API_URL}/auth/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, code })
+                });
+                const data = await response.json();
+                if (response.ok && data.data.token) {
+                    authToken = data.data.token;
+                    localStorage.setItem('test_token', authToken);
+                    showResponse('authResponse', { success: 'Авторизация успешна!', admin: data.data.admin }, true);
+                } else {
+                    showResponse('authResponse', data, false);
+                }
+            } catch (error) {
+                showResponse('authResponse', { error: error.message }, false);
+            }
+        }
+
+        async function getMyPendingPayments() {
+            if (!authToken) {
+                alert('Сначала авторизуйтесь!');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/approvals/payments?pending_approval=true`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.data) {
+                    pendingPayments = data.data;
+                    displayPendingPayments(pendingPayments);
+                    showResponse('pendingResponse', { 
+                        success: `Найдено ${pendingPayments.length} платежей ожидающих вашей подписи` 
+                    }, true);
+                } else {
+                    showResponse('pendingResponse', data, false);
+                }
+            } catch (error) {
+                showResponse('pendingResponse', { error: error.message }, false);
+            }
+        }
+
+        function displayPendingPayments(payments) {
+            const container = document.getElementById('pendingList');
+            if (payments.length === 0) {
+                container.innerHTML = '<p style="padding: 10px; color: #666;">Нет платежей ожидающих подписи</p>';
+                return;
+            }
+
+            const html = `
+                <div class="pending-list">
+                    ${payments.map(p => `
+                        <div class="pending-item">
+                            <div>
+                                <strong>${p.title}</strong><br>
+                                <small>${p.description || 'Нет описания'}</small>
+                            </div>
+                            <div class="amount">${Number(p.amount).toLocaleString('ru-RU')} ${p.currency}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        async function approveAllMy() {
+            if (!authToken) {
+                alert('Сначала авторизуйтесь!');
+                return;
+            }
+
+            if (!confirm('Вы уверены что хотите подписать ВСЕ платежи ожидающие вашей подписи?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/approvals/approve-all-my`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                showResponse('approveAllResponse', data, response.ok);
+                
+                if (response.ok) {
+                    // Обновляем список
+                    setTimeout(() => getMyPendingPayments(), 1000);
+                }
+            } catch (error) {
+                showResponse('approveAllResponse', { error: error.message }, false);
+            }
+        }
+
+        async function bulkApprove() {
+            if (!authToken) {
+                alert('Сначала авторизуйтесь!');
+                return;
+            }
+
+            const idsStr = document.getElementById('selectedIds').value;
+            const payment_ids = idsStr.split(',').map(id => id.trim()).filter(id => id);
+
+            if (payment_ids.length === 0) {
+                alert('Укажите ID платежей!');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/approvals/bulk-approve`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ payment_ids })
+                });
+                const data = await response.json();
+                showResponse('bulkResponse', data, response.ok);
+            } catch (error) {
+                showResponse('bulkResponse', { error: error.message }, false);
+            }
+        }
+
+        function showResponse(elementId, data, success) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="response ${success ? '' : 'error'}">${JSON.stringify(data, null, 2)}</div>`;
+        }
+
+        // Проверка авторизации при загрузке
+        if (authToken) {
+            showResponse('authResponse', { info: 'Токен найден в localStorage', token: authToken.substring(0, 20) + '...' }, true);
+        }
+    </script>
+</body>
+</html>
+

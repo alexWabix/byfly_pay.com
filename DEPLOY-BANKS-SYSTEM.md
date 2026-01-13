@@ -226,3 +226,4 @@ UPDATE outgoing_payments SET bank_id = NULL WHERE bank_id = X;
 
 
 
+
