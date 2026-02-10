@@ -366,16 +366,35 @@ class Transaction {
         }
 
         // Отменяем платеж на терминале если есть
-        if ($transaction['kaspi_terminal_id']) {
+        if ($transaction['kaspi_terminal_id'] && $transaction['terminal_operation_id']) {
             $kaspiTerminal = new KaspiTerminal();
             try {
+                // ВАЖНО! Используем terminal_operation_id (processId), а не transaction_id
                 $kaspiTerminal->cancelPayment(
                     $transaction['kaspi_terminal_id'],
-                    $transaction['transaction_id']
+                    $transaction['terminal_operation_id']
                 );
                 $kaspiTerminal->unlockTerminal($transaction['kaspi_terminal_id']);
+                
+                $this->addLog(
+                    $transaction['id'], 
+                    'terminal_cancelled', 
+                    null, 
+                    'Операция отменена на терминале'
+                );
             } catch (Exception $e) {
-                error_log("Cancel payment error: " . $e->getMessage());
+                error_log("Cancel payment on terminal error: " . $e->getMessage());
+                // Продолжаем отмену даже если терминал недоступен
+            }
+        }
+        
+        // Освобождаем терминал в любом случае
+        if ($transaction['kaspi_terminal_id']) {
+            try {
+                $kaspiTerminal = new KaspiTerminal();
+                $kaspiTerminal->unlockTerminal($transaction['kaspi_terminal_id']);
+            } catch (Exception $e) {
+                error_log("Unlock terminal error: " . $e->getMessage());
             }
         }
 
