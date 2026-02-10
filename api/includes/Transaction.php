@@ -238,13 +238,14 @@ class Transaction {
         }
 
         // Проверяем статус на терминале
-        if ($transaction['kaspi_terminal_id']) {
+        if ($transaction['kaspi_terminal_id'] && $transaction['terminal_operation_id']) {
             $kaspiTerminal = new KaspiTerminal();
             
             try {
+                // ВАЖНО! Используем terminal_operation_id (processId от терминала), а не transaction_id
                 $status = $kaspiTerminal->checkPaymentStatus(
                     $transaction['kaspi_terminal_id'],
-                    $transaction['transaction_id']
+                    $transaction['terminal_operation_id']
                 );
 
                 $this->addLog(
@@ -391,57 +392,35 @@ class Transaction {
     }
 
     /**
-     * Отправка webhook уведомления
+     * Отправка webhook уведомления используя класс Webhook
      */
     private function sendWebhook($id) {
         $transaction = $this->getById($id);
 
         if (!$transaction['webhook_url']) {
-            return;
+            error_log("WEBHOOK: No webhook_url for transaction #{$id}");
+            return false;
         }
 
-        $data = [
-            'transaction_id' => $transaction['transaction_id'],
-            'status' => $transaction['status'],
-            'amount' => $transaction['amount'],
-            'paid_amount' => $transaction['paid_amount'],
-            'currency' => $transaction['currency'],
-            'description' => $transaction['description'],
-            'metadata' => json_decode($transaction['metadata'], true),
-            'paid_at' => $transaction['paid_at']
-        ];
-
-        $ch = curl_init($transaction['webhook_url']);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'X-Webhook-Signature: ' . hash_hmac('sha256', json_encode($data), JWT_SECRET)
-        ]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        $this->db->update(
-            'transactions',
-            [
-                'webhook_sent' => 1,
-                'webhook_response' => $response
-            ],
-            'id = ?',
-            [$id]
-        );
-
-        $this->addLog(
-            $id,
-            'webhook_sent',
-            null,
-            "Webhook отправлен (HTTP $httpCode)",
-            ['response' => $response, 'http_code' => $httpCode]
-        );
+        // Используем новый класс Webhook для отправки
+        $webhook = new Webhook();
+        
+        // Определяем тип события
+        $eventType = Webhook::EVENT_PAID;
+        if ($transaction['status'] === 'partially_paid') {
+            $eventType = Webhook::EVENT_PARTIALLY_PAID;
+        } elseif ($transaction['status'] === 'failed') {
+            $eventType = Webhook::EVENT_FAILED;
+        } elseif ($transaction['status'] === 'cancelled') {
+            $eventType = Webhook::EVENT_CANCELLED;
+        }
+        
+        // Отправляем webhook
+        $success = $webhook->send($id, $eventType);
+        
+        error_log("WEBHOOK: Sent {$eventType} webhook for transaction #{$id}, success: " . ($success ? 'yes' : 'no'));
+        
+        return $success;
     }
 
     /**
